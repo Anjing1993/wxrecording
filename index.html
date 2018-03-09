@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>微信录音并识别</title>
+    <meta name="keywords" content="">
+    <meta name="description" content="">
+
+    <meta charset="utf-8">
+    <meta content="yes" name="apple-mobile-web-app-capable">
+    <meta content="yes" name="apple-touch-fullscreen">
+    <meta content="telephone=no,email=no" name="format-detection">
+    <meta name="screen-orientation" content="portrait">
+    <meta name="x5-orientation" content="portrait">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <link rel="shortcut icon" href="https://mimg.127.net/pub/common/favicon/yanxuan/favicon.ico">
+    <script type="text/javascript" compress="no-compress">
+        !function() {
+            function a() {
+                if (parseInt(document.documentElement.clientWidth) > 720) {
+                    document.documentElement.style.fontSize = 720 / 750 * 10 / 16 * 1000 + "%";
+                } else {
+                    document.documentElement.style.fontSize = document.documentElement.clientWidth / 750 * 10 / 16 * 1000 + "%";
+                }
+            }
+            var b = null;
+            window.addEventListener("resize", function () {
+                clearTimeout(b);
+                b = setTimeout(a, 300);
+            }, !1);
+            a();
+        }(window);
+    </script>
+    <style type="text/css">
+        *{
+            padding: 0;
+            margin: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html,
+        body {
+            width: 100%;
+            max-width: 750px;
+            margin: 0 auto;
+            height: 100%;
+        }
+        body {
+            position: relative;
+            font-size: 14px;
+            overflow: hidden;
+        }
+        /* doc style */
+        .g-doc {
+            position: relative;
+            margin: 0 auto;
+            width: 7.5rem;
+            background: #fefefe;
+            height: 100%;
+            overflow: hidden;
+        }
+        .m-recording{
+            width: 6rem;
+            margin: .8rem auto 0;
+        }
+        .m-recording .input{
+            width: 6rem;
+            height: 6rem;
+            resize: none;
+            border: 1px solid #d9d9d9;
+            outline: none;
+            border-radius: .08rem;
+            padding: .2rem;
+        }
+        .m-recording .recordingBtn{
+            width: 1.5rem;
+            height: 1.5rem;
+            line-height: 1.5rem;
+            color: #fff;
+            text-align: center;
+            border-radius: 50%;
+            background: #A32D25;
+            margin: 0 auto;
+        }
+        </style>
+</head>
+<body>
+<!-- your code start  -->
+<div class="g-doc J_doc">
+    <div class="m-recording">
+        <textarea class="J-input input"></textarea>
+        <div class="recordingBtn J-recordingBtn">录音</div>
+    </div>
+</div>
+<script type="text/javascript" src="lib/jweixin-1.2.0.js"></script>
+<script type="text/javascript" src="lib/zepto.min.js"></script>
+<script type="text/javascript">
+    $(function() {
+    var cookieFn = {
+        //设置cookie
+        setCookie: function (cname, cvalue, exdays) {
+            var d = new Date();
+            d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+            var expires = 'expires=' + d.toUTCString();
+            document.cookie = cname + '=' + cvalue + '; ' + expires;
+        },
+        //获取cookie
+        getCookie: function(cname) {
+            var name = cname + '=';
+            var ca = document.cookie.split(';');
+            for (var i = 0; i < ca.length; i++) {
+                var c = ca[i];
+                while (c.charAt(0) == ' ') c = c.substring(1);
+                if (c.indexOf(name) != -1) return c.substring(name.length, c.length);
+            }
+            return '';
+        },
+        //清除cookie
+        clearCookie: function(name) {
+            this.setCookie(name, "", -1);
+        },
+        clearAllCookie: function(_arr) {
+            for (var i = 0; i < _arr.length; i++) {
+                this.setCookie(_arr[i], "", -1);
+            }
+        }
+    };
+    let $doc = $('.J_doc'),
+        $input = $('.J-input'),
+        $recordingBtn = $('.J-recordingBtn'),
+        oPage = {
+            events: {
+                'touchstart .J-recordingBtn': 'frecording',
+            },
+            voiceId:0,
+            startTime:0,
+            timer:null,
+            init: function() {
+                let self = this;
+
+                self.ajaxRoot = '';
+                self.fgetwxConfig();
+                self.bindEvents();
+            },
+            bindEvents: function(events) {
+                var delegateEventSplitter = /^(\S+)\s*(.*)$/;
+
+                if (!(events || (events = this.events))) {
+                  return this;
+                }
+        
+                for (var key in events) {
+                  var method = events[key];
+                  if (typeof method !== 'function') {
+                      method = this[events[key]];
+                  }
+        
+                  var match = key.match(delegateEventSplitter);
+                  var eventName = match[1],
+                      selector = match[2] ? match[2] : null;
+                  $(selector).unbind(eventName);
+                  $(selector).bind(eventName, method);
+                }
+                return this;
+            },
+            fgetwxConfig: function(){
+                var self = oPage;
+                var configUrl = 'xxx';//此处为项目获取微信签名的接口
+                $.ajax({
+                    url : configUrl + encodeURIComponent(location.href.split('#')[0]),
+                    type : 'get',
+                    dataType: 'jsonp',
+                    data : {
+                    },
+                    cache : false,
+                    async : false,
+                    success : function (_res) {
+                        if (_res.code == 200){
+                            var _api = _res.content.jsApi;
+                              wx.config({
+                                    debug: false, // 开启调试模式,调用的所有api的返回值会在客户端alert出来，若要查看传入的参数，可以在pc端打开，参数信息会通过log打出，仅在pc端时才会打印。
+                                    appId: _api.appId, // 必填，企业号的唯一标识，此处填写企业号corpid
+                                    timestamp:_api.timestamp , // 必填，生成签名的时间戳
+                                    nonceStr: _api.nonceStr, // 必填，生成签名的随机串
+                                    signature: _api.signature,// 必填，签名，见附录1
+                                    jsApiList: [
+                                        "startRecord","stopRecord","onVoiceRecordEnd","stopVoice",
+                                        "onVoicePlayEnd","translateVoice"
+                                    ] // 必填，需要使用的JS接口列表，所有JS接口列表见附录2
+                                });                             
+                        } else {
+                            self.toast('网络异常~');
+                        }
+                    },
+                    error : function() {
+                        self.toast('网络异常~');
+                    }
+                });
+            },
+            frecording: function(){
+                var self = oPage;
+                self.startTime = new Date().getTime();
+                $('.J_doc').on('touchend', '.J-recordingBtn', function(){
+                    self.fstopRecording();
+                });
+                wx.ready(function(){
+                    wx.startRecord({
+                        success: function (res) {
+                            localStorage.userAllowRecord = 'true';
+                            self.countTime();
+                            self.fautoStopvoice();
+                        },
+                        cancel: function () {
+                            self.toast('你已拒绝授权录音~');
+                        }
+                    });
+                });
+            },
+            fstopRecording: function(){
+                var self = oPage,
+                    _timediff = new Date().getTime() - self.startTime;
+                alert('停止录音noNeedStop' + $recordingBtn.hasClass('noNeedStop'));    
+                if ($recordingBtn.hasClass('noNeedStop')) {
+                    return;
+                }              
+                wx.ready(function(){
+                    //说话时间太短
+                    if (_timediff <= 800){
+                        wx.stopRecord({
+                            success: function (res) {
+                                self.voiceId = res.localId;
+                            }
+                        });
+                        self.toast('说话时间太短~');
+                    } else {
+                        alert('停止录音ing');
+                        wx.stopRecord({
+                            success: function (res) {
+                                self.toast('停止录音~' + res.localId);
+                                self.voiceId = res.localId;
+                                self.fDistinguishVoice(self.voiceId);
+                            },
+                            fail: function (res) {
+                                alert('fail');
+                            },
+                            complete: function () {
+                                alert('complete');
+                            }
+                        });
+                    }                
+                });
+            },
+            fDistinguishVoice: function(voiceId){
+                var self = oPage;
+                wx.translateVoice({
+                   localId: voiceId, // 需要识别的音频的本地Id，由录音相关接口获得
+                   isShowProgressTips: 1, // 默认为1，显示进度提示
+                    success: function (res) {
+                        alert('翻译中ing');
+                        alert(res.translateResult);
+                        $input.val().length == 0 ? $input.val(res.translateResult) : $input.val($input.val() + res.translateResult);
+                        $recordingBtn.removeClass('noNeedStop');
+                    },
+                    fail: function (res) {
+                        self.toast('翻译失败~');
+                    },
+                    complete: function () {
+                        self.toast('翻译完成~');
+                    }
+                });
+            },
+            fautoStopvoice: function(){
+                var self = oPage;
+                wx.ready(function(){
+                    wx.onVoiceRecordEnd({
+                        // 录音时间超过一分钟没有停止的时候会执行 complete 回调
+                        complete: function (res) {
+                            self.voiceId = res.localId;
+                            //$('.J_doc').off('touchend', '.J-recording', self.fstopRecording);
+                            clearTimeout(self.timer);
+                            alert('超过一分钟自动停止' + res.localId);
+                            alert('自动停止' + $('.J-recording').hasClass('noNeedStop'));
+                            self.fDistinguishVoice(self.voiceId);
+                        }
+                    });
+                });
+            },
+            countTime: function(){
+                var self = oPage;
+                self.timer = setTimeout(function(){
+                    $recordingBtn.addClass('noNeedStop');
+                },50000)
+            },
+            toast: function(txt){
+                var self = this,
+                    notifyTimer = null,
+                    tpl = '<div class="m-toast J-toast"><p class="txt">' + txt + '</p></div>';
+                clearTimeout(notifyTimer);
+                    $('body').append(tpl);
+                    $('.J-toast').show();
+                    notifyTimer = setTimeout(function(){
+                         $('.J-toast').hide().remove();
+                },1500);
+            }
+        };
+    oPage.init();
+})
+</script>
+</body>
